@@ -9,6 +9,8 @@ import org.apache.spark.sql.functions.{desc, row_number, udf}
 import org.apache.spark.sql.types.LongType
 import org.apache.spark.sql.{Encoders, Row, SparkSession, functions}
 
+import scala.collection.mutable
+
 object CDCOps {
   def main(args: Array[String]): Unit = {
     implicit val spark = SparkSession.builder()
@@ -53,13 +55,15 @@ object CDCOps {
     frame.mapPartitions(rows => fetchTimeStampPerPartition(rows))(RowEncoder(finalSchema)) //.show(false)
   }
 
-  def fetchTimeStampPerPartition(rows: Iterator[Row]): Iterator[Row] = for {
-    row <- rows
-  } yield appendTSWithRow(row)
-
-  def appendTSWithRow(row: Row) = {
-    val fileName = row.getAs[String]("file_name")
+  def fetchTimeStampPerPartition(rows: Iterator[Row]): Iterator[Row] = {
     val tsMap: scala.collection.mutable.Map[String, Long] = scala.collection.mutable.Map()
+    for {
+      row <- rows
+    } yield appendTSWithRow(row, tsMap)
+  }
+
+  def appendTSWithRow(row: Row, tsMap: mutable.Map[String, Long]) = {
+    val fileName = row.getAs[String]("file_name")
     if (tsMap.contains(fileName)) {
       Row.fromSeq(row.toSeq ++ Seq(tsMap(fileName)))
     }
